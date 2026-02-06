@@ -63,10 +63,10 @@ public class TerraCoreWindow : EditorWindow
 
         EditorGUILayout.Space();
         GUILayout.Label("Noise / Terrain", EditorStyles.label);
-        float freq = EditorGUILayout.Slider("Terrain Frequency", engine.config.noiseFrequency, 0.01f, 0.2f);
-        float amp = EditorGUILayout.Slider("Terrain Amplitude", engine.config.noiseAmplitude, 0f, 20f);
-        float cont = EditorGUILayout.Slider("Continent Threshold", engine.config.continentThreshold, 0f, 1f);
-        float cave = EditorGUILayout.Slider("Cave Threshold", engine.config.caveThreshold, 0f, 1f);
+        float freq = EditorGUILayout.Slider("Mountain Scale (Freq)", engine.config.noiseFrequency, 0.01f, 0.2f);
+        float amp = EditorGUILayout.Slider("Mountain Height (Amp)", engine.config.noiseAmplitude, 0f, 30f);
+        float cont = EditorGUILayout.Slider("Land Size %", engine.config.continentThreshold, 0f, 1f);
+        float cave = EditorGUILayout.Slider("Cave Density", engine.config.caveThreshold, 0f, 1f);
 
         bool paramsChanged = EditorGUI.EndChangeCheck();
 

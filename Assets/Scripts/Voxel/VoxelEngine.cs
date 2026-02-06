@@ -126,24 +126,39 @@ namespace Voxel
                         Vector3Int globalPos = chunkPos + new Vector3Int(x, y, z);
                         float dist = Vector3.Distance(globalPos, center);
 
-                        // 1. Continent Shape (Low Frequency Noise)
-                        // If low -> Deep Ocean, If high -> Land
-                        float continentNoise = Mathf.PerlinNoise((globalPos.x + seedOffset) * 0.015f, (globalPos.z + seedOffset) * 0.015f);
+                        // Advanced Noise Generation
+                        float bx = globalPos.x + seedOffset;
+                        float bz = globalPos.z + seedOffset;
 
-                        // 2. Terrain Detail (Medium Frequency)
-                        float detailNoise = Mathf.PerlinNoise((globalPos.x + seedOffset) * config.noiseFrequency, (globalPos.z + seedOffset) * config.noiseFrequency);
+                        // 1. Domain Warping (Twist the coordinates for organic look)
+                        float warpX = Mathf.PerlinNoise(bx * 0.005f, bz * 0.005f) * 20f;
+                        float warpZ = Mathf.PerlinNoise(bz * 0.005f, bx * 0.005f) * 20f;
+
+                        float wx = bx + warpX;
+                        float wz = bz + warpZ;
+
+                        // 2. Continents (Base Layer)
+                        float continentNoise = Mathf.PerlinNoise(wx * 0.01f, wz * 0.01f);
 
                         float elevation = 0;
 
                         if (continentNoise > config.continentThreshold)
                         {
-                            // Land Mass
-                            elevation = (continentNoise - config.continentThreshold) * config.noiseAmplitude * 2 + (detailNoise * config.noiseAmplitude);
+                            // LAND
+                            // 3. Mountains (Ridge Noise: 1 - |sin(x)| roughly)
+                            // We use abs(noise * 2 - 1) to get -1 to 1, then abs gives 0 to 1 ridges
+                            float mntNoise = Mathf.PerlinNoise(wx * config.noiseFrequency, wz * config.noiseFrequency);
+                            float ridge = 1f - Mathf.Abs(mntNoise * 2f - 1f); // Sharp peaks
+                            ridge = Mathf.Pow(ridge, 2f); // Sharpen further
+
+                            elevation = (continentNoise - config.continentThreshold) * 10f; // Base continent height
+                            elevation += ridge * config.noiseAmplitude; // Add mountains
                         }
                         else
                         {
-                            // Ocean Bed
-                            elevation = -((config.continentThreshold - continentNoise) * config.noiseAmplitude);
+                            // OCEAN
+                            // Smoother ocean floor
+                            elevation = -((config.continentThreshold - continentNoise) * 10f);
                         }
 
                         float surfaceRadius = config.planetRadius + elevation;

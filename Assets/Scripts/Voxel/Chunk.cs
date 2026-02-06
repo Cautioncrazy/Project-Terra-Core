@@ -90,7 +90,23 @@ namespace Voxel
                                     neighborBlock = VoxelData.Air;
                             }
 
-                            if (VoxelData.IsTransparent(neighborBlock))
+                            // Optimization: Face Culling Logic
+                            bool drawFace = false;
+
+                            if (blockId == VoxelData.Water)
+                            {
+                                // Water only renders against Air (Surface)
+                                // If neighbor is Water, don't draw (internal face)
+                                // If neighbor is Solid, don't draw (underground)
+                                if (neighborBlock == VoxelData.Air) drawFace = true;
+                            }
+                            else // Solid blocks
+                            {
+                                // Draw against Air or Water (Transparent)
+                                if (VoxelData.IsTransparent(neighborBlock)) drawFace = true;
+                            }
+
+                            if (drawFace)
                             {
                                 int v0Idx = VoxelData.VoxelTris[i, 0];
                                 int v1Idx = VoxelData.VoxelTris[i, 1];
