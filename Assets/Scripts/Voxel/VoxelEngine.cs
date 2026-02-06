@@ -76,8 +76,9 @@ namespace Voxel
 
                         // Simple noise to vary surface
                         // Using x and z for noise coords to create height variations
-                        float noiseVal = Mathf.PerlinNoise(globalPos.x * 0.1f, globalPos.z * 0.1f);
-                        float elevation = noiseVal * 6; // Variance 0 to 6
+                        // Tuned for smoother sphere: Lower frequency (0.05) and lower amplitude (3)
+                        float noiseVal = Mathf.PerlinNoise(globalPos.x * 0.05f, globalPos.z * 0.05f);
+                        float elevation = noiseVal * 4; // Variance 0 to 4
 
                         float surfaceRadius = planetRadius + elevation;
 

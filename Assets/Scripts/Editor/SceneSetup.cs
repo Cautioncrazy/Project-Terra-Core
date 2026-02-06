@@ -29,14 +29,37 @@ public class SceneSetup : MonoBehaviour
         if (sec == null) sec = Undo.AddComponent<SecurityManager>(managers);
 
         // Create a default material if needed
-        if (engine.chunkMaterial == null)
+        bool createMat = engine.chunkMaterial == null;
+        if (!createMat)
         {
-            Material mat = new Material(Shader.Find("Standard"));
-            mat.name = "VoxelMaterial";
-            // Assign a basic color or texture setup if we had assets
-            engine.chunkMaterial = mat;
-            // Ideally we'd save this material asset, but for a runtime setup script we can keep it in memory or user assigns it.
-            Debug.Log("Created temporary material for VoxelEngine. Please assign a saved material in Inspector.");
+             // Force update shader if it's the fallback "Standard" or error shader
+             if (engine.chunkMaterial.shader.name == "Standard" || engine.chunkMaterial.shader.name == "Hidden/InternalErrorShader")
+             {
+                 createMat = true;
+             }
+        }
+
+        if (createMat)
+        {
+            Shader shader = Shader.Find("Custom/VertexColor");
+            if (shader == null)
+            {
+                Debug.LogWarning("Could not find Custom/VertexColor shader. Voxels may be pink.");
+                shader = Shader.Find("Standard"); // Fallback
+            }
+
+            if (engine.chunkMaterial == null)
+            {
+                Material mat = new Material(shader);
+                mat.name = "VoxelMaterial";
+                engine.chunkMaterial = mat;
+            }
+            else
+            {
+                engine.chunkMaterial.shader = shader;
+            }
+
+            Debug.Log($"Set material for VoxelEngine using {shader.name} shader.");
         }
 
         // 2. Setup Player
