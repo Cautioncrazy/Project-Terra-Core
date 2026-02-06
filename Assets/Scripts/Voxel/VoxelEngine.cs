@@ -108,9 +108,34 @@ namespace Voxel
 
             PopulateChunk(chunk, chunkCoord, center);
 
+            chunks.Add(chunkCoord, chunk);
+
+            // Generate mesh for this chunk
             chunk.GenerateMesh();
 
-            chunks.Add(chunkCoord, chunk);
+            // Re-generate meshes for existing neighbors to hide seams
+            UpdateNeighborChunks(chunkCoord);
+        }
+
+        void UpdateNeighborChunks(Vector3Int chunkPos)
+        {
+            Vector3Int[] offsets = {
+                new Vector3Int(VoxelData.ChunkWidth, 0, 0),
+                new Vector3Int(-VoxelData.ChunkWidth, 0, 0),
+                new Vector3Int(0, VoxelData.ChunkHeight, 0),
+                new Vector3Int(0, -VoxelData.ChunkHeight, 0),
+                new Vector3Int(0, 0, VoxelData.ChunkDepth),
+                new Vector3Int(0, 0, -VoxelData.ChunkDepth)
+            };
+
+            foreach (var offset in offsets)
+            {
+                Vector3Int neighborPos = chunkPos + offset;
+                if (chunks.ContainsKey(neighborPos))
+                {
+                    chunks[neighborPos].GenerateMesh();
+                }
+            }
         }
 
         void PopulateChunk(Chunk chunk, Vector3Int chunkPos, Vector3 center)
