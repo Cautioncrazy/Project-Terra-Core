@@ -74,32 +74,64 @@ namespace Voxel
                         Vector3Int globalPos = chunkPos + new Vector3Int(x, y, z);
                         float dist = Vector3.Distance(globalPos, center);
 
-                        // Simple noise to vary surface
-                        // Using x and z for noise coords to create height variations
-                        // Tuned for smoother sphere: Lower frequency (0.05) and lower amplitude (3)
-                        float noiseVal = Mathf.PerlinNoise(globalPos.x * 0.05f, globalPos.z * 0.05f);
-                        float elevation = noiseVal * 4; // Variance 0 to 4
+                        // 1. Terrain Height Noise (Continents)
+                        float terrainNoise = Mathf.PerlinNoise(globalPos.x * 0.05f, globalPos.z * 0.05f);
+                        float elevation = terrainNoise * 8f; // Height variance
 
                         float surfaceRadius = planetRadius + elevation;
 
+                        // 2. Canyon/Cave Noise (3D Perlin approximation)
+                        float caveNoise = Mathf.PerlinNoise(globalPos.x * 0.1f, globalPos.y * 0.1f) * Mathf.PerlinNoise(globalPos.y * 0.1f, globalPos.z * 0.1f);
+                        bool isCave = caveNoise > 0.65f;
+
                         if (dist <= surfaceRadius)
                         {
-                            if (dist < 8)
+                            if (isCave && dist > 10) // Don't cave into core
                             {
-                                chunk.SetBlock(x,y,z, VoxelData.Bedrock, false);
-                            }
-                            else if (dist > surfaceRadius - 3)
-                            {
-                                chunk.SetBlock(x,y,z, VoxelData.Dirt, false);
+                                // Cave or Canyon -> Water if below sea level, Air if above
+                                if (dist <= planetRadius + 2) // Water level slightly above base radius
+                                    chunk.SetBlock(x, y, z, VoxelData.Water, false);
+                                else
+                                    chunk.SetBlock(x, y, z, VoxelData.Air, false);
                             }
                             else
                             {
-                                chunk.SetBlock(x,y,z, VoxelData.Stone, false);
+                                // Solid Terrain
+                                if (dist < 10)
+                                {
+                                    chunk.SetBlock(x, y, z, VoxelData.Bedrock, false);
+                                }
+                                else if (dist > surfaceRadius - 2) // Top 2 layers
+                                {
+                                    // Biome logic based on height
+                                    if (dist < planetRadius + 3) // Near water level -> Sand
+                                        chunk.SetBlock(x, y, z, VoxelData.Sand, false);
+                                    else if (dist < planetRadius + 6) // Mid elevation -> Grass
+                                        chunk.SetBlock(x, y, z, VoxelData.Grass, false);
+                                    else // High elevation -> Stone/Mountain
+                                        chunk.SetBlock(x, y, z, VoxelData.Stone, false);
+                                }
+                                else if (dist > surfaceRadius - 5) // Sub-surface
+                                {
+                                    chunk.SetBlock(x, y, z, VoxelData.Dirt, false);
+                                }
+                                else
+                                {
+                                    chunk.SetBlock(x, y, z, VoxelData.Stone, false);
+                                }
                             }
                         }
                         else
                         {
-                            chunk.SetBlock(x,y,z, VoxelData.Air, false);
+                            // Water check outside terrain surface but within "Sea Level"
+                            if (dist <= planetRadius + 2) // Sea Level
+                            {
+                                chunk.SetBlock(x, y, z, VoxelData.Water, false);
+                            }
+                            else
+                            {
+                                chunk.SetBlock(x, y, z, VoxelData.Air, false);
+                            }
                         }
                     }
                 }
