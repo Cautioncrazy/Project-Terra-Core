@@ -41,20 +41,40 @@ namespace Player
 
         void HandleCamera()
         {
+            // Ensure camera orbits the center of the world
+            if (engine != null)
+            {
+                Vector3 center = engine.GetWorldCenter();
+                if (Vector3.Distance(transform.position, center) > 0.01f)
+                {
+                    transform.position = center;
+                }
+            }
+
             // Orbit around local Y axis (assuming script is attached to a pivot object)
             if (Mouse.current.rightButton.isPressed)
             {
                 float h = Mouse.current.delta.x.ReadValue();
+                float v = Mouse.current.delta.y.ReadValue();
 
-                // Rotate around world up or local up? World up for consistent horizon.
+                // Rotate around world up (Yaw)
                 transform.Rotate(Vector3.up, h * rotateSpeed, Space.World);
+
+                // Rotate around local right (Pitch) - Inverted Y for natural feel
+                transform.Rotate(Vector3.right, -v * rotateSpeed, Space.Self);
             }
 
             // Zoom
             float scroll = Mouse.current.scroll.y.ReadValue();
             if (scroll != 0 && cam != null)
             {
-                cam.transform.Translate(Vector3.forward * scroll * zoomSpeed, Space.Self);
+                float multiplier = 1f;
+                if (Keyboard.current != null && (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed))
+                {
+                    multiplier = 10f;
+                }
+
+                cam.transform.Translate(Vector3.forward * scroll * zoomSpeed * multiplier, Space.Self);
             }
         }
 

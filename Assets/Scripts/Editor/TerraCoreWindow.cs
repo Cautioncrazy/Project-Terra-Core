@@ -89,7 +89,7 @@ public class TerraCoreWindow : EditorWindow
                 hash = hash * 23 + freq.GetHashCode();
                 hash = hash * 23 + amp.GetHashCode();
                 hash = hash * 23 + cont.GetHashCode();
-                engine.config.seed = Mathf.Abs(hash % 999999);
+                engine.config.seed = System.Math.Abs(hash % 999999);
             }
         }
 
