@@ -9,7 +9,7 @@ Shader "Custom/VertexColor"
         Tags { "RenderType"="Transparent" "Queue"="Transparent" }
         LOD 100
         Blend SrcAlpha OneMinusSrcAlpha
-        ZWrite Off
+        ZWrite On
 
         Pass
         {

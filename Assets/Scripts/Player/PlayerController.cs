@@ -15,6 +15,8 @@ namespace Player
         [Header("Settings")]
         public float rotateSpeed = 0.5f; // Reduced for Input System delta values
         public float zoomSpeed = 0.01f; // Reduced for Input System scroll values
+        [Range(1f, 100f)]
+        public float zoomSensitivity = 10f; // Multiplier for zoom
 
         [Header("Tool Heat")]
         public float heatPerClick = 10f;
@@ -74,7 +76,7 @@ namespace Player
                     multiplier = 10f;
                 }
 
-                cam.transform.Translate(Vector3.forward * scroll * zoomSpeed * multiplier, Space.Self);
+                cam.transform.Translate(Vector3.forward * scroll * zoomSpeed * multiplier * zoomSensitivity, Space.Self);
             }
         }
 
