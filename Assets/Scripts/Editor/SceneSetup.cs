@@ -71,7 +71,11 @@ public class SceneSetup : MonoBehaviour
         pc.cam = cam;
 
         // 4. Lights
+#if UNITY_2023_1_OR_NEWER
+        if (Object.FindFirstObjectByType<Light>() == null)
+#else
         if (Object.FindObjectOfType<Light>() == null)
+#endif
         {
             GameObject lightObj = new GameObject("Directional Light");
             Light light = lightObj.AddComponent<Light>();
