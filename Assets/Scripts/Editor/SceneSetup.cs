@@ -1,3 +1,4 @@
+#if UNITY_EDITOR
 using UnityEngine;
 using UnityEditor;
 using Voxel;
@@ -87,3 +88,4 @@ public class SceneSetup : MonoBehaviour
         Debug.Log("Terra Core Scene Setup Complete!");
     }
 }
+#endif
