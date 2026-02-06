@@ -115,7 +115,7 @@ namespace Voxel
 
         void PopulateChunk(Chunk chunk, Vector3Int chunkPos, Vector3 center)
         {
-            float seedOffset = (float)config.seed * 0.1f;
+            float seedOffset = (float)(config.seed % 10000) * 100f; // Fix float precision
 
             for (int x = 0; x < VoxelData.ChunkWidth; x++)
             {
@@ -126,54 +126,54 @@ namespace Voxel
                         Vector3Int globalPos = chunkPos + new Vector3Int(x, y, z);
                         float dist = Vector3.Distance(globalPos, center);
 
-                        // Advanced Noise Generation
+                        // --- Smart Noise Generation ---
                         float bx = globalPos.x + seedOffset;
                         float bz = globalPos.z + seedOffset;
 
-                        // 1. Domain Warping (Twist the coordinates for organic look)
-                        float warpX = Mathf.PerlinNoise(bx * 0.005f, bz * 0.005f) * 20f;
-                        float warpZ = Mathf.PerlinNoise(bz * 0.005f, bx * 0.005f) * 20f;
+                        // 1. Reduced Domain Warping (Fixes "Rods")
+                        float warpX = Mathf.PerlinNoise(bx * 0.01f, bz * 0.01f) * 4f;
+                        float warpZ = Mathf.PerlinNoise(bz * 0.01f, bx * 0.01f) * 4f;
 
                         float wx = bx + warpX;
                         float wz = bz + warpZ;
 
-                        // 2. Continents (Base Layer)
-                        float continentNoise = Mathf.PerlinNoise(wx * 0.01f, wz * 0.01f);
+                        // 2. Continents
+                        float continentNoise = Mathf.PerlinNoise(wx * 0.02f, wz * 0.02f);
 
                         float elevation = 0;
+                        bool isMountain = false;
 
                         if (continentNoise > config.continentThreshold)
                         {
                             // LAND
-                            // 3. Mountains (Ridge Noise: 1 - |sin(x)| roughly)
-                            // We use abs(noise * 2 - 1) to get -1 to 1, then abs gives 0 to 1 ridges
                             float mntNoise = Mathf.PerlinNoise(wx * config.noiseFrequency, wz * config.noiseFrequency);
-                            float ridge = 1f - Mathf.Abs(mntNoise * 2f - 1f); // Sharp peaks
-                            ridge = Mathf.Pow(ridge, 2f); // Sharpen further
+                            float ridge = 1f - Mathf.Abs(mntNoise * 2f - 1f);
+                            ridge = Mathf.Pow(ridge, 2f);
 
-                            elevation = (continentNoise - config.continentThreshold) * 10f; // Base continent height
-                            elevation += ridge * config.noiseAmplitude; // Add mountains
+                            elevation = (continentNoise - config.continentThreshold) * 10f;
+                            elevation += ridge * config.noiseAmplitude;
+
+                            if (ridge > 0.6f) isMountain = true;
                         }
                         else
                         {
                             // OCEAN
-                            // Smoother ocean floor
                             elevation = -((config.continentThreshold - continentNoise) * 10f);
                         }
 
                         float surfaceRadius = config.planetRadius + elevation;
 
-                        // 3. Caves
+                        // 3. Caves (3D Noise)
                         float caveNoise = Mathf.PerlinNoise((globalPos.x + seedOffset) * 0.1f, (globalPos.y + seedOffset) * 0.1f) *
                                           Mathf.PerlinNoise((globalPos.y + seedOffset) * 0.1f, (globalPos.z + seedOffset) * 0.1f);
                         bool isCave = caveNoise > config.caveThreshold;
 
-                        // Determine Block Type
+                        // --- Stratigraphy Logic ---
                         if (dist <= surfaceRadius)
                         {
-                            if (isCave && dist > 10)
+                            // Cave Check (only in Crust/Mantle, not Core)
+                            if (isCave && dist > config.planetRadius * 0.3f)
                             {
-                                // Cave -> Water if below sea level
                                 if (dist <= config.seaLevel)
                                     chunk.SetBlock(x, y, z, VoxelData.Water, false);
                                 else
@@ -181,27 +181,52 @@ namespace Voxel
                             }
                             else
                             {
-                                // Solid
-                                if (dist < 10)
+                                // Layers: Core -> Mantle -> Crust
+                                if (dist < config.planetRadius * 0.15f)
                                 {
-                                    chunk.SetBlock(x, y, z, VoxelData.Bedrock, false);
+                                    chunk.SetBlock(x, y, z, VoxelData.Magma, false); // Core
                                 }
-                                else if (dist > surfaceRadius - 3) // Surface Layer
+                                else if (dist < config.planetRadius * 0.5f)
                                 {
-                                    if (dist < config.seaLevel + 2)
-                                        chunk.SetBlock(x, y, z, VoxelData.Sand, false);
-                                    else if (dist < config.seaLevel + 8)
-                                        chunk.SetBlock(x, y, z, VoxelData.Grass, false);
-                                    else
-                                        chunk.SetBlock(x, y, z, VoxelData.Stone, false);
+                                    // Mantle (Bedrock/Magma mix?)
+                                    if (Random.value > 0.9f) chunk.SetBlock(x, y, z, VoxelData.Magma, false);
+                                    else chunk.SetBlock(x, y, z, VoxelData.Bedrock, false);
                                 }
-                                else if (dist > surfaceRadius - 8)
+                                else if (dist < surfaceRadius - 4)
                                 {
-                                    chunk.SetBlock(x, y, z, VoxelData.Dirt, false);
+                                    // Deep Crust
+                                    chunk.SetBlock(x, y, z, VoxelData.Stone, false);
                                 }
                                 else
                                 {
-                                    chunk.SetBlock(x, y, z, VoxelData.Stone, false);
+                                    // Surface Crust (Biomes)
+                                    // Temperature Noise
+                                    float tempNoise = Mathf.PerlinNoise(wx * 0.01f + 500, wz * 0.01f + 500);
+
+                                    if (dist <= config.seaLevel + 1) // Beach/Water Level
+                                    {
+                                        chunk.SetBlock(x, y, z, VoxelData.Sand, false);
+                                    }
+                                    else if (isMountain && dist > config.seaLevel + 15) // High Peaks
+                                    {
+                                        chunk.SetBlock(x, y, z, VoxelData.Snow, false);
+                                    }
+                                    else
+                                    {
+                                        // Biome Selection
+                                        if (tempNoise < 0.3f) // Cold -> Snow/Stone
+                                        {
+                                             chunk.SetBlock(x, y, z, VoxelData.Snow, false);
+                                        }
+                                        else if (tempNoise > 0.7f) // Hot -> Sand
+                                        {
+                                             chunk.SetBlock(x, y, z, VoxelData.Sand, false);
+                                        }
+                                        else // Temperate -> Grass
+                                        {
+                                             chunk.SetBlock(x, y, z, VoxelData.Grass, false);
+                                        }
+                                    }
                                 }
                             }
                         }

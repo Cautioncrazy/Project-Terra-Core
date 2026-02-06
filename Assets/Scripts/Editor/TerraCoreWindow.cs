@@ -54,6 +54,20 @@ public class TerraCoreWindow : EditorWindow
         }
 
         EditorGUILayout.Space();
+        GUILayout.Label("Camera Settings", EditorStyles.label);
+
+        // Find player to update zoom sensitivity
+#if UNITY_2023_1_OR_NEWER
+        var player = Object.FindFirstObjectByType<Player.PlayerController>();
+#else
+        var player = Object.FindObjectOfType<Player.PlayerController>();
+#endif
+        if (player != null)
+        {
+            player.zoomSensitivity = EditorGUILayout.Slider("Zoom Sensitivity", player.zoomSensitivity, 1f, 100f);
+        }
+
+        EditorGUILayout.Space();
         GUILayout.Label("Dimensions", EditorStyles.label);
         engine.config.worldSize = EditorGUILayout.IntSlider("World Size (Chunks)", engine.config.worldSize, 1, 8);
 
