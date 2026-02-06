@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 using Voxel;
 using Core;
 using Security;
@@ -12,8 +13,8 @@ namespace Player
         public Camera cam;
 
         [Header("Settings")]
-        public float rotateSpeed = 5.0f;
-        public float zoomSpeed = 5.0f;
+        public float rotateSpeed = 0.5f; // Reduced for Input System delta values
+        public float zoomSpeed = 0.01f; // Reduced for Input System scroll values
 
         [Header("Tool Heat")]
         public float heatPerClick = 10f;
@@ -31,23 +32,26 @@ namespace Player
                 if (currentHeat < 0) currentHeat = 0;
             }
 
-            HandleCamera();
-            HandleInput();
+            if (Mouse.current != null)
+            {
+                HandleCamera();
+                HandleInput();
+            }
         }
 
         void HandleCamera()
         {
             // Orbit around local Y axis (assuming script is attached to a pivot object)
-            if (Input.GetMouseButton(1)) // Right click rotate
+            if (Mouse.current.rightButton.isPressed)
             {
-                float h = Input.GetAxis("Mouse X");
+                float h = Mouse.current.delta.x.ReadValue();
 
                 // Rotate around world up or local up? World up for consistent horizon.
                 transform.Rotate(Vector3.up, h * rotateSpeed, Space.World);
             }
 
             // Zoom
-            float scroll = Input.GetAxis("Mouse ScrollWheel");
+            float scroll = Mouse.current.scroll.y.ReadValue();
             if (scroll != 0 && cam != null)
             {
                 cam.transform.Translate(Vector3.forward * scroll * zoomSpeed, Space.Self);
@@ -58,14 +62,14 @@ namespace Player
         {
             if (isOverheated) return;
 
-            if (Input.GetMouseButtonDown(0)) // Left click dig
+            if (Mouse.current.leftButton.wasPressedThisFrame)
             {
                 if (SecurityManager.Instance != null && !SecurityManager.Instance.ValidateInput())
                     return;
 
                 if (cam == null) return;
 
-                Ray ray = cam.ScreenPointToRay(Input.mousePosition);
+                Ray ray = cam.ScreenPointToRay(Mouse.current.position.ReadValue());
                 RaycastHit hit;
 
                 if (Physics.Raycast(ray, out hit, 100f))
