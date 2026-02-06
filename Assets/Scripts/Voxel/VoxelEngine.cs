@@ -6,9 +6,21 @@ namespace Voxel
 {
     public class VoxelEngine : MonoBehaviour
     {
-        [Header("World Settings")]
-        public int worldSize = 4; // Dimensions in Chunks (4x4x4)
-        public int planetRadius = 24; // Radius in blocks
+        [System.Serializable]
+        public class WorldConfig
+        {
+            public int seed = 12345;
+            public int worldSize = 4; // Dimensions in Chunks (4x4x4)
+            public int planetRadius = 24; // Radius in blocks
+            public float seaLevel = 26f; // Absolute height
+
+            [Range(0.01f, 0.2f)] public float noiseFrequency = 0.03f;
+            [Range(0f, 20f)] public float noiseAmplitude = 8f;
+            [Range(0f, 1f)] public float caveThreshold = 0.65f;
+            [Range(0f, 1f)] public float continentThreshold = 0.4f; // Controls land/water ratio
+        }
+
+        public WorldConfig config = new WorldConfig();
 
         [Header("References")]
         public Material chunkMaterial;
@@ -20,23 +32,43 @@ namespace Voxel
             GenerateWorld();
         }
 
-        void GenerateWorld()
+        public void GenerateWorld()
         {
-            // Center of the world in block coordinates
-            Vector3 center = new Vector3(worldSize * VoxelData.ChunkWidth / 2f,
-                                         worldSize * VoxelData.ChunkHeight / 2f,
-                                         worldSize * VoxelData.ChunkDepth / 2f);
-
-            for (int x = 0; x < worldSize; x++)
+            // Clean up existing chunks
+            foreach (var chunk in chunks.Values)
             {
-                for (int y = 0; y < worldSize; y++)
+                if (chunk != null)
                 {
-                    for (int z = 0; z < worldSize; z++)
+                    if (Application.isPlaying)
+                        Destroy(chunk.gameObject);
+                    else
+                        DestroyImmediate(chunk.gameObject);
+                }
+            }
+            chunks.Clear();
+
+            Random.InitState(config.seed);
+
+            // Center of the world in block coordinates
+            Vector3 center = GetWorldCenter();
+
+            for (int x = 0; x < config.worldSize; x++)
+            {
+                for (int y = 0; y < config.worldSize; y++)
+                {
+                    for (int z = 0; z < config.worldSize; z++)
                     {
                         CreateChunk(x, y, z, center);
                     }
                 }
             }
+        }
+
+        public Vector3 GetWorldCenter()
+        {
+            return new Vector3(config.worldSize * VoxelData.ChunkWidth / 2f,
+                               config.worldSize * VoxelData.ChunkHeight / 2f,
+                               config.worldSize * VoxelData.ChunkDepth / 2f);
         }
 
         void CreateChunk(int x, int y, int z, Vector3 center)
@@ -65,6 +97,8 @@ namespace Voxel
 
         void PopulateChunk(Chunk chunk, Vector3Int chunkPos, Vector3 center)
         {
+            float seedOffset = (float)config.seed * 0.1f;
+
             for (int x = 0; x < VoxelData.ChunkWidth; x++)
             {
                 for (int y = 0; y < VoxelData.ChunkHeight; y++)
@@ -74,44 +108,61 @@ namespace Voxel
                         Vector3Int globalPos = chunkPos + new Vector3Int(x, y, z);
                         float dist = Vector3.Distance(globalPos, center);
 
-                        // 1. Terrain Height Noise (Continents)
-                        float terrainNoise = Mathf.PerlinNoise(globalPos.x * 0.05f, globalPos.z * 0.05f);
-                        float elevation = terrainNoise * 8f; // Height variance
+                        // 1. Continent Shape (Low Frequency Noise)
+                        // If low -> Deep Ocean, If high -> Land
+                        float continentNoise = Mathf.PerlinNoise((globalPos.x + seedOffset) * 0.015f, (globalPos.z + seedOffset) * 0.015f);
 
-                        float surfaceRadius = planetRadius + elevation;
+                        // 2. Terrain Detail (Medium Frequency)
+                        float detailNoise = Mathf.PerlinNoise((globalPos.x + seedOffset) * config.noiseFrequency, (globalPos.z + seedOffset) * config.noiseFrequency);
 
-                        // 2. Canyon/Cave Noise (3D Perlin approximation)
-                        float caveNoise = Mathf.PerlinNoise(globalPos.x * 0.1f, globalPos.y * 0.1f) * Mathf.PerlinNoise(globalPos.y * 0.1f, globalPos.z * 0.1f);
-                        bool isCave = caveNoise > 0.65f;
+                        float elevation = 0;
 
+                        if (continentNoise > config.continentThreshold)
+                        {
+                            // Land Mass
+                            elevation = (continentNoise - config.continentThreshold) * config.noiseAmplitude * 2 + (detailNoise * config.noiseAmplitude);
+                        }
+                        else
+                        {
+                            // Ocean Bed
+                            elevation = -((config.continentThreshold - continentNoise) * config.noiseAmplitude);
+                        }
+
+                        float surfaceRadius = config.planetRadius + elevation;
+
+                        // 3. Caves
+                        float caveNoise = Mathf.PerlinNoise((globalPos.x + seedOffset) * 0.1f, (globalPos.y + seedOffset) * 0.1f) *
+                                          Mathf.PerlinNoise((globalPos.y + seedOffset) * 0.1f, (globalPos.z + seedOffset) * 0.1f);
+                        bool isCave = caveNoise > config.caveThreshold;
+
+                        // Determine Block Type
                         if (dist <= surfaceRadius)
                         {
-                            if (isCave && dist > 10) // Don't cave into core
+                            if (isCave && dist > 10)
                             {
-                                // Cave or Canyon -> Water if below sea level, Air if above
-                                if (dist <= planetRadius + 2) // Water level slightly above base radius
+                                // Cave -> Water if below sea level
+                                if (dist <= config.seaLevel)
                                     chunk.SetBlock(x, y, z, VoxelData.Water, false);
                                 else
                                     chunk.SetBlock(x, y, z, VoxelData.Air, false);
                             }
                             else
                             {
-                                // Solid Terrain
+                                // Solid
                                 if (dist < 10)
                                 {
                                     chunk.SetBlock(x, y, z, VoxelData.Bedrock, false);
                                 }
-                                else if (dist > surfaceRadius - 2) // Top 2 layers
+                                else if (dist > surfaceRadius - 3) // Surface Layer
                                 {
-                                    // Biome logic based on height
-                                    if (dist < planetRadius + 3) // Near water level -> Sand
+                                    if (dist < config.seaLevel + 2)
                                         chunk.SetBlock(x, y, z, VoxelData.Sand, false);
-                                    else if (dist < planetRadius + 6) // Mid elevation -> Grass
+                                    else if (dist < config.seaLevel + 8)
                                         chunk.SetBlock(x, y, z, VoxelData.Grass, false);
-                                    else // High elevation -> Stone/Mountain
+                                    else
                                         chunk.SetBlock(x, y, z, VoxelData.Stone, false);
                                 }
-                                else if (dist > surfaceRadius - 5) // Sub-surface
+                                else if (dist > surfaceRadius - 8)
                                 {
                                     chunk.SetBlock(x, y, z, VoxelData.Dirt, false);
                                 }
@@ -123,8 +174,7 @@ namespace Voxel
                         }
                         else
                         {
-                            // Water check outside terrain surface but within "Sea Level"
-                            if (dist <= planetRadius + 2) // Sea Level
+                            if (dist <= config.seaLevel)
                             {
                                 chunk.SetBlock(x, y, z, VoxelData.Water, false);
                             }
