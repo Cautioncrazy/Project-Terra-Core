@@ -32,6 +32,24 @@ namespace Voxel
             GenerateWorld();
         }
 
+        public void ApplySeedToConfig()
+        {
+            Random.InitState(config.seed);
+
+            // Generate randomized properties based on seed
+            config.planetRadius = Random.Range(15, 55);
+            config.seaLevel = config.planetRadius + Random.Range(-5, 10);
+
+            config.noiseFrequency = Random.Range(0.02f, 0.15f);
+            config.noiseAmplitude = Random.Range(4f, 12f);
+
+            config.continentThreshold = Random.Range(0.3f, 0.7f);
+            config.caveThreshold = Random.Range(0.5f, 0.8f);
+
+            // Ensure sea level is somewhat logical
+            if (config.seaLevel < config.planetRadius - 5) config.seaLevel = config.planetRadius - 5;
+        }
+
         public void GenerateWorld()
         {
             // Clean up existing chunks

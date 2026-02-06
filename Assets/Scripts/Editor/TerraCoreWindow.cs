@@ -22,7 +22,11 @@ public class TerraCoreWindow : EditorWindow
 
         if (engine == null)
         {
-            engine = FindObjectOfType<VoxelEngine>();
+#if UNITY_2023_1_OR_NEWER
+            engine = Object.FindFirstObjectByType<VoxelEngine>();
+#else
+            engine = Object.FindObjectOfType<VoxelEngine>();
+#endif
         }
 
         if (engine == null)
@@ -33,24 +37,61 @@ public class TerraCoreWindow : EditorWindow
         }
 
         // Config Sliders
-        engine.config.seed = EditorGUILayout.IntField("Seed", engine.config.seed);
-        if (GUILayout.Button("Random Seed"))
+        EditorGUI.BeginChangeCheck();
+        int newSeed = EditorGUILayout.IntField("Seed", engine.config.seed);
+        bool seedChanged = EditorGUI.EndChangeCheck();
+
+        if (seedChanged)
+        {
+            engine.config.seed = newSeed;
+            engine.ApplySeedToConfig();
+        }
+
+        if (GUILayout.Button("Randomize Planet"))
         {
             engine.config.seed = Random.Range(0, 999999);
+            engine.ApplySeedToConfig();
         }
 
         EditorGUILayout.Space();
         GUILayout.Label("Dimensions", EditorStyles.label);
         engine.config.worldSize = EditorGUILayout.IntSlider("World Size (Chunks)", engine.config.worldSize, 1, 8);
-        engine.config.planetRadius = EditorGUILayout.IntSlider("Planet Radius", engine.config.planetRadius, 10, 60);
-        engine.config.seaLevel = EditorGUILayout.Slider("Sea Level (Height)", engine.config.seaLevel, 10, 70);
+
+        EditorGUI.BeginChangeCheck();
+        int rad = EditorGUILayout.IntSlider("Planet Radius", engine.config.planetRadius, 10, 60);
+        float sea = EditorGUILayout.Slider("Sea Level (Height)", engine.config.seaLevel, 10, 70);
 
         EditorGUILayout.Space();
         GUILayout.Label("Noise / Terrain", EditorStyles.label);
-        engine.config.noiseFrequency = EditorGUILayout.Slider("Terrain Frequency", engine.config.noiseFrequency, 0.01f, 0.2f);
-        engine.config.noiseAmplitude = EditorGUILayout.Slider("Terrain Amplitude", engine.config.noiseAmplitude, 0f, 20f);
-        engine.config.continentThreshold = EditorGUILayout.Slider("Continent Threshold", engine.config.continentThreshold, 0f, 1f);
-        engine.config.caveThreshold = EditorGUILayout.Slider("Cave Threshold", engine.config.caveThreshold, 0f, 1f);
+        float freq = EditorGUILayout.Slider("Terrain Frequency", engine.config.noiseFrequency, 0.01f, 0.2f);
+        float amp = EditorGUILayout.Slider("Terrain Amplitude", engine.config.noiseAmplitude, 0f, 20f);
+        float cont = EditorGUILayout.Slider("Continent Threshold", engine.config.continentThreshold, 0f, 1f);
+        float cave = EditorGUILayout.Slider("Cave Threshold", engine.config.caveThreshold, 0f, 1f);
+
+        bool paramsChanged = EditorGUI.EndChangeCheck();
+
+        if (paramsChanged)
+        {
+            engine.config.planetRadius = rad;
+            engine.config.seaLevel = sea;
+            engine.config.noiseFrequency = freq;
+            engine.config.noiseAmplitude = amp;
+            engine.config.continentThreshold = cont;
+            engine.config.caveThreshold = cave;
+
+            // Reverse Seed: Update seed based on params so "changing sliders changes seed"
+            // Simple hash combination
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 23 + rad.GetHashCode();
+                hash = hash * 23 + sea.GetHashCode();
+                hash = hash * 23 + freq.GetHashCode();
+                hash = hash * 23 + amp.GetHashCode();
+                hash = hash * 23 + cont.GetHashCode();
+                engine.config.seed = Mathf.Abs(hash % 999999);
+            }
+        }
 
         EditorGUILayout.Space();
 
