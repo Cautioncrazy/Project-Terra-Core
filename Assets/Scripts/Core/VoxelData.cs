@@ -10,6 +10,8 @@ namespace Core
         public const byte Stone = 2;
         public const byte Water = 3;
         public const byte Bedrock = 4;
+        public const byte Sand = 5;
+        public const byte Grass = 6;
 
         // Chunk Dimensions
         public const int ChunkWidth = 16;
@@ -71,10 +73,12 @@ namespace Core
         {
              switch (blockId)
             {
-                case Dirt: return new Color(0.6f, 0.4f, 0.2f);
+                case Dirt: return new Color(0.6f, 0.4f, 0.2f); // Brown
                 case Stone: return Color.gray;
-                case Water: return Color.blue;
+                case Water: return new Color(0.2f, 0.4f, 0.8f, 0.8f); // Transparent Blue
                 case Bedrock: return Color.black;
+                case Sand: return new Color(0.95f, 0.9f, 0.6f); // Tan
+                case Grass: return new Color(0.3f, 0.7f, 0.2f); // Green
                 default: return Color.clear;
             }
         }
@@ -86,7 +90,7 @@ namespace Core
 
         public static bool IsDestructible(byte blockId)
         {
-            return blockId == Dirt || blockId == Stone;
+            return blockId == Dirt || blockId == Stone || blockId == Sand || blockId == Grass;
         }
     }
 }
