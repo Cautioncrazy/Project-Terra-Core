@@ -2,6 +2,7 @@
 using UnityEngine;
 using UnityEditor;
 using Voxel;
+using Core;
 
 public class TerraCoreWindow : EditorWindow
 {
