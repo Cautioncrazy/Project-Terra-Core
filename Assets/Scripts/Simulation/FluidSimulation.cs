@@ -55,7 +55,10 @@ namespace Simulation
 
                             Vector3Int globalPos = chunk.chunkPosition + new Vector3Int(x, y, z);
 
-                            if (block == VoxelData.Dirt || block == VoxelData.Sand)
+                            // Include all loose terrain types in gravity
+                            if (block == VoxelData.Dirt || block == VoxelData.Sand ||
+                                block == VoxelData.Grass || block == VoxelData.Snow ||
+                                block == VoxelData.Gravel || block == VoxelData.Clay)
                             {
                                 ProcessSolidGravity(globalPos, block, center, modifiedChunks);
                             }

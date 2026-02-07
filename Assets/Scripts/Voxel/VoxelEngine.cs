@@ -17,7 +17,9 @@ namespace Voxel
             [Range(0.01f, 0.2f)] public float noiseFrequency = 0.03f;
             [Range(0f, 20f)] public float noiseAmplitude = 8f;
             [Range(0f, 1f)] public float caveThreshold = 0.65f;
+            [Range(0.01f, 0.2f)] public float caveFrequency = 0.1f;
             [Range(0f, 1f)] public float continentThreshold = 0.4f; // Controls land/water ratio
+            [Range(0f, 20f)] public float oceanDepth = 10f;
         }
 
         public WorldConfig config = new WorldConfig();
@@ -70,9 +72,11 @@ namespace Voxel
 
             config.noiseFrequency = Random.Range(0.02f, 0.15f);
             config.noiseAmplitude = Random.Range(4f, 12f);
+            config.oceanDepth = Random.Range(5f, 15f);
 
             config.continentThreshold = Random.Range(0.3f, 0.7f);
             config.caveThreshold = Random.Range(0.5f, 0.8f);
+            config.caveFrequency = Random.Range(0.05f, 0.15f);
 
             // Ensure sea level is somewhat logical
             if (config.seaLevel < config.planetRadius - 5) config.seaLevel = config.planetRadius - 5;
@@ -288,20 +292,24 @@ namespace Voxel
                             {
                                 // OCEAN
                                 // Deep ocean at center, shallow at edge
-                                elevation = -10f * plateEdgeFactor;
+                                elevation = -config.oceanDepth * plateEdgeFactor;
                                 // Add some rolling hills on sea floor
                                 elevation += Mathf.PerlinNoise(wx * 0.05f, wz * 0.05f) * 4f;
                             }
                         }
 
-                        float surfaceRadius = config.planetRadius + elevation;
+                        // Enforce Minimum Crust Radius (Keep it spherical)
+                        // Don't let deep oceans/canyons cut into the Mantle (Radius * 0.5)
+                        float minHeight = config.planetRadius * 0.5f + 5f;
+                        float surfaceRadius = Mathf.Max(config.planetRadius + elevation, minHeight);
 
                         // 3. Caves (3D Noise)
                         bool isCave = false;
                         if (useNoise)
                         {
-                            float caveNoise = Mathf.PerlinNoise((globalPos.x + seedOffset) * 0.1f, (globalPos.y + seedOffset) * 0.1f) *
-                                              Mathf.PerlinNoise((globalPos.y + seedOffset) * 0.1f, (globalPos.z + seedOffset) * 0.1f);
+                            float cf = config.caveFrequency;
+                            float caveNoise = Mathf.PerlinNoise((globalPos.x + seedOffset) * cf, (globalPos.y + seedOffset) * cf) *
+                                              Mathf.PerlinNoise((globalPos.y + seedOffset) * cf, (globalPos.z + seedOffset) * cf);
                             isCave = caveNoise > config.caveThreshold;
                         }
 
