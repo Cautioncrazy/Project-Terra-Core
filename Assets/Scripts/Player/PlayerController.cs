@@ -27,8 +27,11 @@ namespace Player
 
         [Header("Paint Mode")]
         public bool isPaintMode = false;
+        public bool isBucketMode = false; // Continuous Pour
         public byte selectedBlock = VoxelData.Stone;
         private GameObject cursor;
+        private float paintTimer = 0f;
+        private float paintInterval = 0.05f; // 20 blocks/sec
 
         void Start()
         {
@@ -146,29 +149,58 @@ namespace Player
         {
             if (isOverheated) return;
 
-            if (Mouse.current.leftButton.wasPressedThisFrame)
-            {
-                if (SecurityManager.Instance != null && !SecurityManager.Instance.ValidateInput())
-                    return;
+            bool isClick = Mouse.current.leftButton.wasPressedThisFrame;
+            bool isHold = Mouse.current.leftButton.isPressed;
 
+            // Digging (Click only)
+            if (!isPaintMode && isClick)
+            {
+                if (SecurityManager.Instance != null && !SecurityManager.Instance.ValidateInput()) return;
                 if (cam == null) return;
 
                 Ray ray = cam.ScreenPointToRay(Mouse.current.position.ReadValue());
                 RaycastHit hit;
-
                 if (Physics.Raycast(ray, out hit, 100f))
                 {
-                    // To interact: Move slightly inside the block along normal.
                     Vector3 insidePoint = hit.point - hit.normal * 0.1f;
                     Vector3Int blockPos = Vector3Int.FloorToInt(insidePoint);
+                    Dig(blockPos);
+                }
+            }
+            // Paint Mode
+            else if (isPaintMode)
+            {
+                if (cam == null) return;
 
-                    if (isPaintMode)
+                // Bucket Mode (Continuous Pour)
+                if (isBucketMode && isHold)
+                {
+                    paintTimer += Time.deltaTime;
+                    if (paintTimer >= paintInterval)
                     {
-                        Paint(blockPos);
+                        paintTimer = 0;
+                        Ray ray = cam.ScreenPointToRay(Mouse.current.position.ReadValue());
+                        RaycastHit hit;
+                        if (Physics.Raycast(ray, out hit, 100f))
+                        {
+                            // Spawn OUTSIDE the mesh (build up)
+                            Vector3 outsidePoint = hit.point + hit.normal * 0.5f;
+                            Vector3Int blockPos = Vector3Int.FloorToInt(outsidePoint);
+                            Paint(blockPos);
+                        }
                     }
-                    else
+                }
+                // Standard Paint (Single Click Replace)
+                else if (!isBucketMode && isClick)
+                {
+                    Ray ray = cam.ScreenPointToRay(Mouse.current.position.ReadValue());
+                    RaycastHit hit;
+                    if (Physics.Raycast(ray, out hit, 100f))
                     {
-                        Dig(blockPos);
+                        // Replace INSIDE the mesh
+                        Vector3 insidePoint = hit.point - hit.normal * 0.1f;
+                        Vector3Int blockPos = Vector3Int.FloorToInt(insidePoint);
+                        Paint(blockPos);
                     }
                 }
             }
@@ -177,7 +209,8 @@ namespace Player
         void Paint(Vector3Int pos)
         {
             if (engine == null) return;
-            // Paint replaces the block, preserving its shape but changing material
+            // Modify/Place block
+            // Note: If Bucket Mode places sand in air, FluidSimulation will move it next tick.
             engine.ModifyBlock(pos, selectedBlock);
         }
 
