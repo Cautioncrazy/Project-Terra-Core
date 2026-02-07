@@ -2,7 +2,6 @@
 using UnityEngine;
 using UnityEditor;
 using Voxel;
-using Simulation;
 using Player;
 using Security;
 
@@ -21,9 +20,6 @@ public class SceneSetup : MonoBehaviour
 
         VoxelEngine engine = managers.GetComponent<VoxelEngine>();
         if (engine == null) engine = Undo.AddComponent<VoxelEngine>(managers);
-
-        FluidSimulation fluid = managers.GetComponent<FluidSimulation>();
-        if (fluid == null) fluid = Undo.AddComponent<FluidSimulation>(managers);
 
         SecurityManager sec = managers.GetComponent<SecurityManager>();
         if (sec == null) sec = Undo.AddComponent<SecurityManager>(managers);
