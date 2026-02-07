@@ -65,6 +65,33 @@ public class TerraCoreWindow : EditorWindow
         if (player != null)
         {
             player.zoomSensitivity = EditorGUILayout.Slider("Zoom Sensitivity", player.zoomSensitivity, 1f, 100f);
+
+            EditorGUILayout.Space();
+            GUILayout.Label("Painting", EditorStyles.label);
+
+            bool newPaintState = EditorGUILayout.Toggle("Paint Mode", player.isPaintMode);
+            if (newPaintState != player.isPaintMode) player.isPaintMode = newPaintState;
+
+            if (player.isPaintMode)
+            {
+                GUILayout.BeginHorizontal();
+                DrawBlockButton(player, "Stone", VoxelData.Stone, Color.gray);
+                DrawBlockButton(player, "Dirt", VoxelData.Dirt, new Color(0.6f, 0.4f, 0.2f));
+                DrawBlockButton(player, "Sand", VoxelData.Sand, new Color(0.95f, 0.9f, 0.6f));
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal();
+                DrawBlockButton(player, "Grass", VoxelData.Grass, new Color(0.3f, 0.7f, 0.2f));
+                DrawBlockButton(player, "Snow", VoxelData.Snow, Color.white);
+                DrawBlockButton(player, "Magma", VoxelData.Magma, new Color(1.0f, 0.4f, 0.0f));
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal();
+                DrawBlockButton(player, "Water", VoxelData.Water, Color.blue);
+                DrawBlockButton(player, "Bedrock", VoxelData.Bedrock, Color.black);
+                DrawBlockButton(player, "Air", VoxelData.Air, Color.cyan);
+                GUILayout.EndHorizontal();
+            }
         }
 
         EditorGUILayout.Space();
@@ -93,18 +120,9 @@ public class TerraCoreWindow : EditorWindow
             engine.config.continentThreshold = cont;
             engine.config.caveThreshold = cave;
 
-            // Reverse Seed: Update seed based on params so "changing sliders changes seed"
-            // Simple hash combination
-            unchecked
-            {
-                int hash = 17;
-                hash = hash * 23 + rad.GetHashCode();
-                hash = hash * 23 + sea.GetHashCode();
-                hash = hash * 23 + freq.GetHashCode();
-                hash = hash * 23 + amp.GetHashCode();
-                hash = hash * 23 + cont.GetHashCode();
-                engine.config.seed = System.Math.Abs(hash % 999999);
-            }
+            // Note: We intentionally DO NOT update the seed when parameters change.
+            // This allows the user to tweak values (e.g. Sea Level) without re-randomizing the entire noise field.
+            // The Seed is now the "Master" preset key, but parameters are independent tweaks.
         }
 
         EditorGUILayout.Space();
@@ -143,6 +161,27 @@ public class TerraCoreWindow : EditorWindow
         GUI.backgroundColor = Color.white;
 
         EditorGUILayout.EndScrollView();
+    }
+
+    void DrawBlockButton(Player.PlayerController player, string name, byte blockId, Color col)
+    {
+        GUI.backgroundColor = col;
+        if (blockId == player.selectedBlock)
+        {
+            // Highlight selected
+             if (GUILayout.Button($"[{name}]", GUILayout.Width(60)))
+             {
+                 player.selectedBlock = blockId;
+             }
+        }
+        else
+        {
+             if (GUILayout.Button(name, GUILayout.Width(60)))
+             {
+                 player.selectedBlock = blockId;
+             }
+        }
+        GUI.backgroundColor = Color.white;
     }
 }
 #endif

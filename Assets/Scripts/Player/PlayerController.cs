@@ -25,6 +25,40 @@ namespace Player
         private float currentHeat = 0f;
         private bool isOverheated = false;
 
+        [Header("Paint Mode")]
+        public bool isPaintMode = false;
+        public byte selectedBlock = VoxelData.Stone;
+        private GameObject cursor;
+
+        void Start()
+        {
+             CreateCursor();
+        }
+
+        void CreateCursor()
+        {
+            if (cursor == null)
+            {
+                cursor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                cursor.name = "Cursor";
+                Destroy(cursor.GetComponent<BoxCollider>());
+                cursor.transform.localScale = Vector3.one * 1.1f;
+                Material mat = new Material(Shader.Find("Standard"));
+                mat.color = new Color(1, 1, 0, 0.5f);
+                // Make transparent
+                mat.SetFloat("_Mode", 3);
+                mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                mat.SetInt("_ZWrite", 0);
+                mat.DisableKeyword("_ALPHATEST_ON");
+                mat.EnableKeyword("_ALPHABLEND_ON");
+                mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                mat.renderQueue = 3000;
+                cursor.GetComponent<MeshRenderer>().material = mat;
+                cursor.SetActive(false);
+            }
+        }
+
         void Update()
         {
             // Cooldown
@@ -38,6 +72,34 @@ namespace Player
             {
                 HandleCamera();
                 HandleInput();
+                HandleCursor();
+            }
+        }
+
+        void HandleCursor()
+        {
+            if (!isPaintMode || cam == null || Mouse.current == null)
+            {
+                if (cursor != null) cursor.SetActive(false);
+                return;
+            }
+
+            Ray ray = cam.ScreenPointToRay(Mouse.current.position.ReadValue());
+            RaycastHit hit;
+            if (Physics.Raycast(ray, out hit, 100f))
+            {
+                Vector3 insidePoint = hit.point - hit.normal * 0.1f;
+                Vector3Int pos = Vector3Int.FloorToInt(insidePoint);
+
+                if (cursor != null)
+                {
+                    cursor.SetActive(true);
+                    cursor.transform.position = pos + new Vector3(0.5f, 0.5f, 0.5f);
+                }
+            }
+            else
+            {
+                if (cursor != null) cursor.SetActive(false);
             }
         }
 
@@ -96,15 +158,27 @@ namespace Player
 
                 if (Physics.Raycast(ray, out hit, 100f))
                 {
-                    // Hit mesh
-                    // To destroy: Move slightly inside the block along normal (opposite to normal).
+                    // To interact: Move slightly inside the block along normal.
                     Vector3 insidePoint = hit.point - hit.normal * 0.1f;
-
                     Vector3Int blockPos = Vector3Int.FloorToInt(insidePoint);
 
-                    Dig(blockPos);
+                    if (isPaintMode)
+                    {
+                        Paint(blockPos);
+                    }
+                    else
+                    {
+                        Dig(blockPos);
+                    }
                 }
             }
+        }
+
+        void Paint(Vector3Int pos)
+        {
+            if (engine == null) return;
+            // Paint replaces the block, preserving its shape but changing material
+            engine.ModifyBlock(pos, selectedBlock);
         }
 
         void Dig(Vector3Int pos)
@@ -123,7 +197,7 @@ namespace Player
             {
                 engine.ModifyBlock(pos, VoxelData.Air);
 
-                // Add Heat
+                // Add Heat (Only digging generates heat?)
                 currentHeat += heatPerClick;
                 if (currentHeat >= maxHeat)
                 {
