@@ -114,6 +114,34 @@ public class TerraCoreWindow : EditorWindow
             engine.GenerateWorld();
         }
 
+        EditorGUILayout.Space();
+        GUILayout.Label("Generation Actions", EditorStyles.boldLabel);
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Generate Base (Shape)", GUILayout.Height(30)))
+        {
+            engine.GenerateBaseShape();
+        }
+        if (GUILayout.Button("Generate Terrain", GUILayout.Height(30)))
+        {
+            engine.GenerateTerrain();
+        }
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.Space();
+        if (GUILayout.Button(engine.splitView ? "Disable Split View" : "Enable Split View", GUILayout.Height(25)))
+        {
+            engine.ToggleSplitView();
+        }
+
+        EditorGUILayout.Space();
+        GUI.backgroundColor = Color.red;
+        if (GUILayout.Button("EMERGENCY RESET", GUILayout.Height(25)))
+        {
+            engine.EmergencyReset();
+        }
+        GUI.backgroundColor = Color.white;
+
         EditorGUILayout.EndScrollView();
     }
 }

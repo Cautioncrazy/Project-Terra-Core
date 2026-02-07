@@ -69,6 +69,10 @@ namespace Voxel
                         byte blockId = blocks[x, y, z];
                         if (blockId == VoxelData.Air) continue;
 
+                        // Split View Check
+                        Vector3Int globalPos = chunkPosition + new Vector3Int(x, y, z);
+                        if (world != null && world.IsClipped(globalPos)) continue;
+
                         Vector3 blockPos = new Vector3(x, y, z);
 
                         for (int i = 0; i < 6; i++)
@@ -79,18 +83,29 @@ namespace Voxel
                             int nz = z + dir.z;
 
                             byte neighborBlock;
+                            bool neighborIsClipped = false;
 
                             if (IsBounds(nx, ny, nz))
                             {
                                 neighborBlock = blocks[nx, ny, nz];
+                                // Local neighbor check for clipping
+                                if (world != null && world.IsClipped(chunkPosition + new Vector3Int(nx, ny, nz)))
+                                    neighborIsClipped = true;
                             }
                             else
                             {
                                 if (world != null)
-                                    neighborBlock = world.GetBlock(chunkPosition + new Vector3Int(nx, ny, nz));
+                                {
+                                    Vector3Int nGlobal = chunkPosition + new Vector3Int(nx, ny, nz);
+                                    neighborBlock = world.GetBlock(nGlobal);
+                                    if (world.IsClipped(nGlobal)) neighborIsClipped = true;
+                                }
                                 else
                                     neighborBlock = VoxelData.Air;
                             }
+
+                            // Treat clipped neighbor as Air so we draw the cross-section face
+                            if (neighborIsClipped) neighborBlock = VoxelData.Air;
 
                             // Optimization: Face Culling Logic
                             bool drawFace = false;

@@ -28,8 +28,35 @@ namespace Voxel
 
         private Dictionary<Vector3Int, Chunk> chunks = new Dictionary<Vector3Int, Chunk>();
 
+        public bool splitView = false;
+
         void Start()
         {
+            GenerateWorld();
+        }
+
+        public void ToggleSplitView()
+        {
+            splitView = !splitView;
+            foreach (var chunk in chunks.Values)
+            {
+                chunk.GenerateMesh();
+            }
+        }
+
+        public bool IsClipped(Vector3Int globalPos)
+        {
+            if (!splitView) return false;
+            Vector3 center = GetWorldCenter();
+            return globalPos.x > center.x;
+        }
+
+        public void EmergencyReset()
+        {
+            config.worldSize = 1;
+            config.planetRadius = 8;
+            config.seaLevel = 10;
+            config.noiseAmplitude = 0;
             GenerateWorld();
         }
 
@@ -51,7 +78,28 @@ namespace Voxel
             if (config.seaLevel < config.planetRadius - 5) config.seaLevel = config.planetRadius - 5;
         }
 
+        // Enum to control generation phase
+        public enum GenMode { Full, ShapeOnly, TerrainOnly }
+
         public void GenerateWorld()
+        {
+            GenerateWorld(GenMode.Full);
+        }
+
+        public void GenerateBaseShape()
+        {
+            GenerateWorld(GenMode.ShapeOnly);
+        }
+
+        public void GenerateTerrain()
+        {
+             // For terrain only, we might want to keep existing chunks but re-populate?
+             // For now, simpler to just regenerate everything with full logic.
+             // But to simulate "Applying Terrain", we could just ensure we run the full logic.
+             GenerateWorld(GenMode.Full);
+        }
+
+        public void GenerateWorld(GenMode mode)
         {
             // Clean up existing chunks
             foreach (var chunk in chunks.Values)
@@ -77,7 +125,7 @@ namespace Voxel
                 {
                     for (int z = 0; z < config.worldSize; z++)
                     {
-                        CreateChunk(x, y, z, center);
+                        CreateChunk(x, y, z, center, mode);
                     }
                 }
             }
@@ -90,7 +138,7 @@ namespace Voxel
                                config.worldSize * VoxelData.ChunkDepth / 2f);
         }
 
-        void CreateChunk(int x, int y, int z, Vector3 center)
+        void CreateChunk(int x, int y, int z, Vector3 center, GenMode mode)
         {
             Vector3Int chunkCoord = new Vector3Int(x * VoxelData.ChunkWidth, y * VoxelData.ChunkHeight, z * VoxelData.ChunkDepth);
 
@@ -111,7 +159,7 @@ namespace Voxel
 
             chunk.Initialize(this, chunkCoord);
 
-            PopulateChunk(chunk, chunkCoord, center);
+            PopulateChunk(chunk, chunkCoord, center, mode);
 
             chunks.Add(chunkCoord, chunk);
 
@@ -143,9 +191,12 @@ namespace Voxel
             }
         }
 
-        void PopulateChunk(Chunk chunk, Vector3Int chunkPos, Vector3 center)
+        void PopulateChunk(Chunk chunk, Vector3Int chunkPos, Vector3 center, GenMode mode)
         {
             float seedOffset = (float)(config.seed % 10000) * 100f; // Fix float precision
+
+            // Override settings if in ShapeOnly mode
+            bool useNoise = (mode != GenMode.ShapeOnly);
 
             for (int x = 0; x < VoxelData.ChunkWidth; x++)
             {
@@ -173,30 +224,37 @@ namespace Voxel
                         float elevation = 0;
                         bool isMountain = false;
 
-                        if (continentNoise > config.continentThreshold)
+                        if (useNoise)
                         {
-                            // LAND
-                            float mntNoise = Mathf.PerlinNoise(wx * config.noiseFrequency, wz * config.noiseFrequency);
-                            float ridge = 1f - Mathf.Abs(mntNoise * 2f - 1f);
-                            ridge = Mathf.Pow(ridge, 2f);
+                            if (continentNoise > config.continentThreshold)
+                            {
+                                // LAND
+                                float mntNoise = Mathf.PerlinNoise(wx * config.noiseFrequency, wz * config.noiseFrequency);
+                                float ridge = 1f - Mathf.Abs(mntNoise * 2f - 1f);
+                                ridge = Mathf.Pow(ridge, 2f);
 
-                            elevation = (continentNoise - config.continentThreshold) * 10f;
-                            elevation += ridge * config.noiseAmplitude;
+                                elevation = (continentNoise - config.continentThreshold) * 10f;
+                                elevation += ridge * config.noiseAmplitude;
 
-                            if (ridge > 0.6f) isMountain = true;
-                        }
-                        else
-                        {
-                            // OCEAN
-                            elevation = -((config.continentThreshold - continentNoise) * 10f);
+                                if (ridge > 0.6f) isMountain = true;
+                            }
+                            else
+                            {
+                                // OCEAN
+                                elevation = -((config.continentThreshold - continentNoise) * 10f);
+                            }
                         }
 
                         float surfaceRadius = config.planetRadius + elevation;
 
                         // 3. Caves (3D Noise)
-                        float caveNoise = Mathf.PerlinNoise((globalPos.x + seedOffset) * 0.1f, (globalPos.y + seedOffset) * 0.1f) *
-                                          Mathf.PerlinNoise((globalPos.y + seedOffset) * 0.1f, (globalPos.z + seedOffset) * 0.1f);
-                        bool isCave = caveNoise > config.caveThreshold;
+                        bool isCave = false;
+                        if (useNoise)
+                        {
+                            float caveNoise = Mathf.PerlinNoise((globalPos.x + seedOffset) * 0.1f, (globalPos.y + seedOffset) * 0.1f) *
+                                              Mathf.PerlinNoise((globalPos.y + seedOffset) * 0.1f, (globalPos.z + seedOffset) * 0.1f);
+                            isCave = caveNoise > config.caveThreshold;
+                        }
 
                         // --- Stratigraphy Logic ---
                         if (dist <= surfaceRadius)
