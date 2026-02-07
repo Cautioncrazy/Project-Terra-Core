@@ -107,8 +107,10 @@ public class TerraCoreWindow : EditorWindow
         GUILayout.Label("Noise / Terrain", EditorStyles.label);
         float freq = EditorGUILayout.Slider("Mountain Scale (Freq)", engine.config.noiseFrequency, 0.01f, 0.2f);
         float amp = EditorGUILayout.Slider("Mountain Height (Amp)", engine.config.noiseAmplitude, 0f, 30f);
+        float ocean = EditorGUILayout.Slider("Ocean Depth", engine.config.oceanDepth, 0f, 30f);
         float cont = EditorGUILayout.Slider("Land Size %", engine.config.continentThreshold, 0f, 1f);
         float cave = EditorGUILayout.Slider("Cave Density", engine.config.caveThreshold, 0f, 1f);
+        float caveScale = EditorGUILayout.Slider("Cave Scale", engine.config.caveFrequency, 0.01f, 0.2f);
 
         bool paramsChanged = EditorGUI.EndChangeCheck();
 
@@ -118,8 +120,10 @@ public class TerraCoreWindow : EditorWindow
             engine.config.seaLevel = sea;
             engine.config.noiseFrequency = freq;
             engine.config.noiseAmplitude = amp;
+            engine.config.oceanDepth = ocean;
             engine.config.continentThreshold = cont;
             engine.config.caveThreshold = cave;
+            engine.config.caveFrequency = caveScale;
 
             // Note: We intentionally DO NOT update the seed when parameters change.
             // This allows the user to tweak values (e.g. Sea Level) without re-randomizing the entire noise field.
