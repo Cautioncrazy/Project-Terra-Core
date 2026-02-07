@@ -160,6 +160,21 @@ public class TerraCoreWindow : EditorWindow
         }
 
         EditorGUILayout.Space();
+
+        // Physics Simulation
+        var sim = engine.GetComponent<Simulation.FluidSimulation>();
+        if (sim != null)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Physics", EditorStyles.boldLabel, GUILayout.Width(60));
+            if (GUILayout.Button("Simulate 1 Tick", GUILayout.Height(20)))
+            {
+                sim.SimulationTick();
+            }
+            GUILayout.EndHorizontal();
+        }
+
+        EditorGUILayout.Space();
         GUI.backgroundColor = Color.red;
         if (GUILayout.Button("EMERGENCY RESET", GUILayout.Height(25)))
         {

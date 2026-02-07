@@ -27,7 +27,7 @@ namespace Simulation
             }
         }
 
-        void SimulationTick()
+        public void SimulationTick()
         {
             List<Chunk> allChunks = new List<Chunk>(engine.GetAllChunks());
             // No simple Y-sort for radial gravity. Ideally sort by distance from center descending.
@@ -40,6 +40,7 @@ namespace Simulation
             allChunks.Reverse(); // Outer chunks first
 
             HashSet<Chunk> modifiedChunks = new HashSet<Chunk>();
+            HashSet<Vector3Int> processedBlocks = new HashSet<Vector3Int>();
 
             foreach (Chunk chunk in allChunks)
             {
@@ -50,21 +51,23 @@ namespace Simulation
                     {
                         for (int z = 0; z < VoxelData.ChunkDepth; z++)
                         {
+                            Vector3Int globalPos = chunk.chunkPosition + new Vector3Int(x, y, z);
+                            if (processedBlocks.Contains(globalPos)) continue;
+
                             byte block = chunk.GetBlock(x, y, z);
                             if (block == VoxelData.Air || block == VoxelData.Bedrock || block == VoxelData.Stone) continue;
 
-                            Vector3Int globalPos = chunk.chunkPosition + new Vector3Int(x, y, z);
-
-                            // Include all loose terrain types in gravity
+                            // Include all loose terrain types AND Stone/Magma in gravity
                             if (block == VoxelData.Dirt || block == VoxelData.Sand ||
                                 block == VoxelData.Grass || block == VoxelData.Snow ||
-                                block == VoxelData.Gravel || block == VoxelData.Clay)
+                                block == VoxelData.Gravel || block == VoxelData.Clay ||
+                                block == VoxelData.Stone || block == VoxelData.Magma)
                             {
-                                ProcessSolidGravity(globalPos, block, center, modifiedChunks);
+                                ProcessSolidGravity(globalPos, block, center, modifiedChunks, processedBlocks);
                             }
                             else if (block == VoxelData.Water)
                             {
-                                ProcessFluid(globalPos, block, center, modifiedChunks);
+                                ProcessFluid(globalPos, block, center, modifiedChunks, processedBlocks);
                             }
                         }
                     }
@@ -99,7 +102,7 @@ namespace Simulation
             return bestDir;
         }
 
-        void ProcessSolidGravity(Vector3Int pos, byte type, Vector3 center, HashSet<Chunk> modifiedChunks)
+        void ProcessSolidGravity(Vector3Int pos, byte type, Vector3 center, HashSet<Chunk> modifiedChunks, HashSet<Vector3Int> processedBlocks)
         {
             Vector3Int down = GetRadialDown(pos, center);
             Vector3Int targetPos = pos + down;
@@ -108,17 +111,78 @@ namespace Simulation
 
             byte blockTarget = engine.GetBlock(targetPos);
 
-            if (blockTarget == VoxelData.Air || blockTarget == VoxelData.Water) // Displace water?
+            // 1. Direct Fall
+            if (blockTarget == VoxelData.Air || blockTarget == VoxelData.Water)
             {
-                 // 50% chance for dirt/sand to fall
-                if (Random.value > 0.5f)
+                if (blockTarget == VoxelData.Water)
                 {
-                    MoveBlock(pos, targetPos, type, modifiedChunks);
+                    // Displacement: Solid sinks, Water moves up (Swap)
+                    SwapBlock(pos, targetPos, type, VoxelData.Water, modifiedChunks, processedBlocks);
                 }
+                else
+                {
+                    // Fall into Air
+                    MoveBlock(pos, targetPos, type, modifiedChunks, processedBlocks);
+                }
+            }
+            else
+            {
+                // 2. Displacement / Landslide (Slide sideways if blocked)
+                // Try to find a diagonal neighbor that is closer to center or same level but empty
+                AttemptSlide(pos, type, down, modifiedChunks, processedBlocks);
             }
         }
 
-        void ProcessFluid(Vector3Int pos, byte type, Vector3 center, HashSet<Chunk> modifiedChunks)
+        void AttemptSlide(Vector3Int pos, byte type, Vector3Int down, HashSet<Chunk> modifiedChunks, HashSet<Vector3Int> processedBlocks)
+        {
+            // Check 4 diagonals relative to 'down'
+            // If down is (0, -1, 0), diagonals are (1, -1, 0), (-1, -1, 0), etc.
+
+            List<Vector3Int> slideCandidates = new List<Vector3Int>();
+
+            foreach (var face in VoxelData.FaceChecks)
+            {
+                if (face == down || face == -down) continue; // Skip up/down relative to radial
+
+                Vector3Int diagonal = down + face;
+                Vector3Int target = pos + diagonal;
+
+                if (!engine.IsInsideWorld(target)) continue;
+
+                byte targetBlock = engine.GetBlock(target);
+                if (targetBlock == VoxelData.Air || targetBlock == VoxelData.Water)
+                {
+                    slideCandidates.Add(target);
+                }
+            }
+
+            if (slideCandidates.Count > 0)
+            {
+                // High chance to slide (prevent pillars)
+                // Randomly pick one candidate to avoid bias
+                Vector3Int target = slideCandidates[Random.Range(0, slideCandidates.Count)];
+                byte targetBlock = engine.GetBlock(target);
+
+                if (targetBlock == VoxelData.Water)
+                    SwapBlock(pos, target, type, VoxelData.Water, modifiedChunks, processedBlocks);
+                else
+                    MoveBlock(pos, target, type, modifiedChunks, processedBlocks);
+            }
+        }
+
+        void SwapBlock(Vector3Int posA, Vector3Int posB, byte typeA, byte typeB, HashSet<Chunk> modifiedChunks, HashSet<Vector3Int> processedBlocks)
+        {
+            engine.ModifyBlock(posA, typeB, false);
+            engine.ModifyBlock(posB, typeA, false);
+
+            processedBlocks.Add(posA);
+            processedBlocks.Add(posB);
+
+            AddChunkAndNeighborsToSet(posA, modifiedChunks);
+            AddChunkAndNeighborsToSet(posB, modifiedChunks);
+        }
+
+        void ProcessFluid(Vector3Int pos, byte type, Vector3 center, HashSet<Chunk> modifiedChunks, HashSet<Vector3Int> processedBlocks)
         {
             Vector3Int down = GetRadialDown(pos, center);
             Vector3Int targetPos = pos + down;
@@ -129,7 +193,7 @@ namespace Simulation
 
             if (blockTarget == VoxelData.Air)
             {
-                MoveBlock(pos, targetPos, type, modifiedChunks);
+                MoveBlock(pos, targetPos, type, modifiedChunks, processedBlocks);
             }
             else if (blockTarget != VoxelData.Air && blockTarget != VoxelData.Water)
             {
@@ -154,15 +218,18 @@ namespace Simulation
                 {
                     // Pick random spread direction
                     Vector3Int spreadTo = spreadDirs[Random.Range(0, spreadDirs.Count)];
-                     MoveBlock(pos, spreadTo, type, modifiedChunks);
+                     MoveBlock(pos, spreadTo, type, modifiedChunks, processedBlocks);
                 }
             }
         }
 
-        void MoveBlock(Vector3Int from, Vector3Int to, byte type, HashSet<Chunk> modifiedChunks)
+        void MoveBlock(Vector3Int from, Vector3Int to, byte type, HashSet<Chunk> modifiedChunks, HashSet<Vector3Int> processedBlocks)
         {
             engine.ModifyBlock(from, VoxelData.Air, false);
             engine.ModifyBlock(to, type, false);
+
+            processedBlocks.Add(from);
+            processedBlocks.Add(to);
 
             AddChunkAndNeighborsToSet(from, modifiedChunks);
             AddChunkAndNeighborsToSet(to, modifiedChunks);
