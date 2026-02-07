@@ -308,6 +308,8 @@ namespace Voxel
                         // --- Stratigraphy Logic ---
                         if (dist <= surfaceRadius)
                         {
+                            if (!IsInsideWorld(globalPos)) continue;
+
                             // Cave Check (only in Crust/Mantle, not Core)
                             if (isCave && dist > config.planetRadius * 0.3f)
                             {
@@ -417,8 +419,19 @@ namespace Voxel
             ModifyBlock(globalPos, type, true);
         }
 
+        // Hard Constraints
+        public bool IsInsideWorld(Vector3Int pos)
+        {
+            int max = config.worldSize * VoxelData.ChunkWidth;
+            return pos.x >= 0 && pos.x < max &&
+                   pos.y >= 0 && pos.y < max &&
+                   pos.z >= 0 && pos.z < max;
+        }
+
         public void ModifyBlock(Vector3Int globalPos, byte type, bool regenerateMesh)
         {
+            if (!IsInsideWorld(globalPos)) return;
+
             int cx = Mathf.FloorToInt((float)globalPos.x / VoxelData.ChunkWidth) * VoxelData.ChunkWidth;
             int cy = Mathf.FloorToInt((float)globalPos.y / VoxelData.ChunkHeight) * VoxelData.ChunkHeight;
             int cz = Mathf.FloorToInt((float)globalPos.z / VoxelData.ChunkDepth) * VoxelData.ChunkDepth;
