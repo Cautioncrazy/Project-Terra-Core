@@ -75,6 +75,8 @@ public class TerraCoreWindow : EditorWindow
 
             if (player.isPaintMode)
             {
+                player.isBucketMode = EditorGUILayout.Toggle("Bucket / Pour Mode", player.isBucketMode);
+
                 GUILayout.BeginHorizontal();
                 DrawBlockButton(player, "Stone", VoxelData.Stone, Color.gray);
                 DrawBlockButton(player, "Dirt", VoxelData.Dirt, new Color(0.6f, 0.4f, 0.2f));
