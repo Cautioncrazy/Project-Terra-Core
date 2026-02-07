@@ -28,39 +28,30 @@ public class SceneSetup : MonoBehaviour
         SecurityManager sec = managers.GetComponent<SecurityManager>();
         if (sec == null) sec = Undo.AddComponent<SecurityManager>(managers);
 
-        // Create a default material if needed
-        bool createMat = engine.chunkMaterial == null;
-        if (!createMat)
+        // Setup Materials (Opaque and Transparent)
+        // 1. Opaque Material
+        if (engine.chunkMaterial == null || engine.chunkMaterial.shader.name != "Custom/VertexColorOpaque")
         {
-             // Force update shader if it's the fallback "Standard" or error shader
-             if (engine.chunkMaterial.shader.name == "Standard" || engine.chunkMaterial.shader.name == "Hidden/InternalErrorShader")
-             {
-                 createMat = true;
-             }
+            Shader shader = Shader.Find("Custom/VertexColorOpaque");
+            if (shader == null) shader = Shader.Find("Standard");
+
+            Material mat = new Material(shader);
+            mat.name = "VoxelSolidMat";
+            engine.chunkMaterial = mat;
         }
 
-        if (createMat)
+        // 2. Water Material
+        if (engine.waterMaterial == null || engine.waterMaterial.shader.name != "Custom/VertexColor")
         {
-            Shader shader = Shader.Find("Custom/VertexColor");
-            if (shader == null)
-            {
-                Debug.LogWarning("Could not find Custom/VertexColor shader. Voxels may be pink.");
-                shader = Shader.Find("Standard"); // Fallback
-            }
+            Shader shader = Shader.Find("Custom/VertexColor"); // The transparent one
+            if (shader == null) shader = Shader.Find("Standard");
 
-            if (engine.chunkMaterial == null)
-            {
-                Material mat = new Material(shader);
-                mat.name = "VoxelMaterial";
-                engine.chunkMaterial = mat;
-            }
-            else
-            {
-                engine.chunkMaterial.shader = shader;
-            }
-
-            Debug.Log($"Set material for VoxelEngine using {shader.name} shader.");
+            Material mat = new Material(shader);
+            mat.name = "VoxelWaterMat";
+            engine.waterMaterial = mat;
         }
+
+        Debug.Log("Setup VoxelEngine Materials (Solid + Water).");
 
         // 2. Setup Player
         GameObject player = GameObject.Find("Player");

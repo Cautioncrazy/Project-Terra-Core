@@ -53,8 +53,10 @@ namespace Voxel
         public void GenerateMesh()
         {
             List<Vector3> vertices = new List<Vector3>();
-            List<int> triangles = new List<int>();
             List<Color> colors = new List<Color>();
+
+            List<int> solidTriangles = new List<int>();
+            List<int> waterTriangles = new List<int>();
 
             int vertexIndex = 0;
 
@@ -67,6 +69,10 @@ namespace Voxel
                         byte blockId = blocks[x, y, z];
                         if (blockId == VoxelData.Air) continue;
 
+                        // Split View Check
+                        Vector3Int globalPos = chunkPosition + new Vector3Int(x, y, z);
+                        if (world != null && world.IsClipped(globalPos)) continue;
+
                         Vector3 blockPos = new Vector3(x, y, z);
 
                         for (int i = 0; i < 6; i++)
@@ -77,18 +83,29 @@ namespace Voxel
                             int nz = z + dir.z;
 
                             byte neighborBlock;
+                            bool neighborIsClipped = false;
 
                             if (IsBounds(nx, ny, nz))
                             {
                                 neighborBlock = blocks[nx, ny, nz];
+                                // Local neighbor check for clipping
+                                if (world != null && world.IsClipped(chunkPosition + new Vector3Int(nx, ny, nz)))
+                                    neighborIsClipped = true;
                             }
                             else
                             {
                                 if (world != null)
-                                    neighborBlock = world.GetBlock(chunkPosition + new Vector3Int(nx, ny, nz));
+                                {
+                                    Vector3Int nGlobal = chunkPosition + new Vector3Int(nx, ny, nz);
+                                    neighborBlock = world.GetBlock(nGlobal);
+                                    if (world.IsClipped(nGlobal)) neighborIsClipped = true;
+                                }
                                 else
                                     neighborBlock = VoxelData.Air;
                             }
+
+                            // Treat clipped neighbor as Air so we draw the cross-section face
+                            if (neighborIsClipped) neighborBlock = VoxelData.Air;
 
                             // Optimization: Face Culling Logic
                             bool drawFace = false;
@@ -124,13 +141,26 @@ namespace Voxel
                                 colors.Add(col);
                                 colors.Add(col);
 
-                                triangles.Add(vertexIndex);
-                                triangles.Add(vertexIndex + 1);
-                                triangles.Add(vertexIndex + 2);
+                                if (blockId == VoxelData.Water)
+                                {
+                                    waterTriangles.Add(vertexIndex);
+                                    waterTriangles.Add(vertexIndex + 1);
+                                    waterTriangles.Add(vertexIndex + 2);
 
-                                triangles.Add(vertexIndex + 2);
-                                triangles.Add(vertexIndex + 1);
-                                triangles.Add(vertexIndex + 3);
+                                    waterTriangles.Add(vertexIndex + 2);
+                                    waterTriangles.Add(vertexIndex + 1);
+                                    waterTriangles.Add(vertexIndex + 3);
+                                }
+                                else
+                                {
+                                    solidTriangles.Add(vertexIndex);
+                                    solidTriangles.Add(vertexIndex + 1);
+                                    solidTriangles.Add(vertexIndex + 2);
+
+                                    solidTriangles.Add(vertexIndex + 2);
+                                    solidTriangles.Add(vertexIndex + 1);
+                                    solidTriangles.Add(vertexIndex + 3);
+                                }
 
                                 vertexIndex += 4;
                             }
@@ -141,12 +171,16 @@ namespace Voxel
 
             Mesh mesh = new Mesh();
             mesh.vertices = vertices.ToArray();
-            mesh.triangles = triangles.ToArray();
             mesh.colors = colors.ToArray();
+
+            mesh.subMeshCount = 2;
+            mesh.SetTriangles(solidTriangles.ToArray(), 0);
+            mesh.SetTriangles(waterTriangles.ToArray(), 1);
+
             mesh.RecalculateNormals();
 
             if (meshFilter != null) meshFilter.mesh = mesh;
-            if (meshCollider != null) meshCollider.sharedMesh = mesh;
+            if (meshCollider != null) meshCollider.sharedMesh = mesh; // Physics on both
         }
     }
 }
