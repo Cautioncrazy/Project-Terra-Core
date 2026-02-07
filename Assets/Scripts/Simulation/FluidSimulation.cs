@@ -101,6 +101,8 @@ namespace Simulation
             Vector3Int down = GetRadialDown(pos, center);
             Vector3Int targetPos = pos + down;
 
+            if (!engine.IsInsideWorld(targetPos)) return; // Constraint
+
             byte blockTarget = engine.GetBlock(targetPos);
 
             if (blockTarget == VoxelData.Air || blockTarget == VoxelData.Water) // Displace water?
@@ -117,6 +119,9 @@ namespace Simulation
         {
             Vector3Int down = GetRadialDown(pos, center);
             Vector3Int targetPos = pos + down;
+
+            if (!engine.IsInsideWorld(targetPos)) return; // Constraint
+
             byte blockTarget = engine.GetBlock(targetPos);
 
             if (blockTarget == VoxelData.Air)
@@ -126,10 +131,6 @@ namespace Simulation
             else if (blockTarget != VoxelData.Air && blockTarget != VoxelData.Water)
             {
                 // Hit something solid. Spread sideways relative to "Down".
-                // Sideways means perpendicular to 'down'.
-                // If down is (0, -1, 0), sideways is X or Z.
-
-                // Simple approach: Check all neighbors except 'up' (opposite of down)
                 List<Vector3Int> spreadDirs = new List<Vector3Int>();
                 Vector3Int up = -down;
 
@@ -138,6 +139,8 @@ namespace Simulation
                     if (face == down || face == up) continue;
 
                     Vector3Int neighborPos = pos + face;
+                    if (!engine.IsInsideWorld(neighborPos)) continue; // Constraint check for spread
+
                     if (engine.GetBlock(neighborPos) == VoxelData.Air)
                     {
                         spreadDirs.Add(neighborPos);
