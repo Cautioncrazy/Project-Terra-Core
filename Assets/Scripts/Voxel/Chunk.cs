@@ -53,8 +53,10 @@ namespace Voxel
         public void GenerateMesh()
         {
             List<Vector3> vertices = new List<Vector3>();
-            List<int> triangles = new List<int>();
             List<Color> colors = new List<Color>();
+
+            List<int> solidTriangles = new List<int>();
+            List<int> waterTriangles = new List<int>();
 
             int vertexIndex = 0;
 
@@ -124,13 +126,26 @@ namespace Voxel
                                 colors.Add(col);
                                 colors.Add(col);
 
-                                triangles.Add(vertexIndex);
-                                triangles.Add(vertexIndex + 1);
-                                triangles.Add(vertexIndex + 2);
+                                if (blockId == VoxelData.Water)
+                                {
+                                    waterTriangles.Add(vertexIndex);
+                                    waterTriangles.Add(vertexIndex + 1);
+                                    waterTriangles.Add(vertexIndex + 2);
 
-                                triangles.Add(vertexIndex + 2);
-                                triangles.Add(vertexIndex + 1);
-                                triangles.Add(vertexIndex + 3);
+                                    waterTriangles.Add(vertexIndex + 2);
+                                    waterTriangles.Add(vertexIndex + 1);
+                                    waterTriangles.Add(vertexIndex + 3);
+                                }
+                                else
+                                {
+                                    solidTriangles.Add(vertexIndex);
+                                    solidTriangles.Add(vertexIndex + 1);
+                                    solidTriangles.Add(vertexIndex + 2);
+
+                                    solidTriangles.Add(vertexIndex + 2);
+                                    solidTriangles.Add(vertexIndex + 1);
+                                    solidTriangles.Add(vertexIndex + 3);
+                                }
 
                                 vertexIndex += 4;
                             }
@@ -141,12 +156,16 @@ namespace Voxel
 
             Mesh mesh = new Mesh();
             mesh.vertices = vertices.ToArray();
-            mesh.triangles = triangles.ToArray();
             mesh.colors = colors.ToArray();
+
+            mesh.subMeshCount = 2;
+            mesh.SetTriangles(solidTriangles.ToArray(), 0);
+            mesh.SetTriangles(waterTriangles.ToArray(), 1);
+
             mesh.RecalculateNormals();
 
             if (meshFilter != null) meshFilter.mesh = mesh;
-            if (meshCollider != null) meshCollider.sharedMesh = mesh;
+            if (meshCollider != null) meshCollider.sharedMesh = mesh; // Physics on both
         }
     }
 }

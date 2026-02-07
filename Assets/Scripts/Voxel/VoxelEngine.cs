@@ -23,7 +23,8 @@ namespace Voxel
         public WorldConfig config = new WorldConfig();
 
         [Header("References")]
-        public Material chunkMaterial;
+        public Material chunkMaterial; // Opaque
+        public Material waterMaterial; // Transparent
 
         private Dictionary<Vector3Int, Chunk> chunks = new Dictionary<Vector3Int, Chunk>();
 
@@ -99,9 +100,13 @@ namespace Voxel
 
             Chunk chunk = go.AddComponent<Chunk>();
 
-            if (chunkMaterial != null)
+            if (chunkMaterial != null && waterMaterial != null)
             {
-                chunk.GetComponent<MeshRenderer>().material = chunkMaterial;
+                chunk.GetComponent<MeshRenderer>().sharedMaterials = new Material[] { chunkMaterial, waterMaterial };
+            }
+            else if (chunkMaterial != null)
+            {
+                 chunk.GetComponent<MeshRenderer>().material = chunkMaterial;
             }
 
             chunk.Initialize(this, chunkCoord);
