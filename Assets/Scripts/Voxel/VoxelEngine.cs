@@ -240,8 +240,10 @@ namespace Voxel
         void PopulateChunk(Chunk chunk, Vector3Int chunkPos, Vector3 center, GenMode mode)
         {
             float seedOffset = (float)(config.seed % 10000) * 100f;
-            // Override settings if in ShapeOnly mode
-            bool useNoise = (mode != GenMode.ShapeOnly);
+
+            // Simplified "Smart Sudoku" / Rule-Based Generation
+            // 1. Calculate Surface Height for this column (Noise)
+            // 2. Iterate Z/Y to fill blocks based on Depth
 
             for (int x = 0; x < VoxelData.ChunkWidth; x++)
             {
@@ -250,77 +252,43 @@ namespace Voxel
                     for (int z = 0; z < VoxelData.ChunkDepth; z++)
                     {
                         Vector3Int globalPos = chunkPos + new Vector3Int(x, y, z);
-                        float dist = Vector3.Distance(globalPos, center);
+                        if (!IsInsideWorld(globalPos)) continue;
 
-                        // --- Smart Noise Generation (Voronoi Plates) ---
+                        float dist = Vector3.Distance(globalPos, center);
                         float wx = globalPos.x + seedOffset;
+                        float wy = globalPos.y + seedOffset;
                         float wz = globalPos.z + seedOffset;
 
-                        float elevation = 0;
-                        bool isMountain = false;
+                        // --- 1. Surface Calculation (Planet Radius + Noise) ---
+                        // Base Radius
+                        float surfaceHeight = config.planetRadius;
 
-                        if (useNoise)
+                        // Add Large Continent Noise
+                        float continentNoise = Mathf.PerlinNoise(wx * 0.02f, wz * 0.02f);
+                        if (continentNoise > config.continentThreshold)
                         {
-                            // 1. Tectonic Plates (Voronoi)
-                            // Scale 0.01 makes plates roughly 100 blocks wide
-                            VoronoiResult tectonic = GetVoronoi(wx, wz, 0.01f, config.seed);
-
-                            // Determine Plate Type based on ID (-1 to 1)
-                            bool isLandPlate = tectonic.id > (config.continentThreshold * 2f - 1f);
-
-                            // Edge Smoothing: minDist is 0 at center, ~0.7 at edge.
-                            // We want edges to taper.
-                            float plateEdgeFactor = Mathf.Clamp01(1f - tectonic.distance); // 1 at center, 0 at edge
-                            plateEdgeFactor = Mathf.Pow(plateEdgeFactor, 0.5f); // Curve it
-
-                            if (isLandPlate)
-                            {
-                                // LAND
-                                float mntNoise = Mathf.PerlinNoise(wx * config.noiseFrequency, wz * config.noiseFrequency);
-                                float ridge = 1f - Mathf.Abs(mntNoise * 2f - 1f);
-                                ridge = Mathf.Pow(ridge, 2f);
-
-                                // Base Continent Height
-                                float baseHeight = 5f * plateEdgeFactor;
-
-                                // Mountain Height
-                                elevation = baseHeight + (ridge * config.noiseAmplitude * plateEdgeFactor);
-
-                                if (ridge > 0.6f && plateEdgeFactor > 0.5f) isMountain = true;
-                            }
-                            else
-                            {
-                                // OCEAN
-                                // Deep ocean at center, shallow at edge
-                                elevation = -config.oceanDepth * plateEdgeFactor;
-                                // Add some rolling hills on sea floor
-                                elevation += Mathf.PerlinNoise(wx * 0.05f, wz * 0.05f) * 4f;
-                            }
+                            surfaceHeight += 5f; // Continent Base
+                            // Mountain Noise on top
+                            float mnt = Mathf.PerlinNoise(wx * config.noiseFrequency, wz * config.noiseFrequency);
+                            surfaceHeight += mnt * config.noiseAmplitude;
+                        }
+                        else
+                        {
+                            surfaceHeight -= config.oceanDepth; // Ocean Floor
                         }
 
-                        // Enforce Minimum Crust Radius (Keep it spherical)
-                        // Don't let deep oceans/canyons cut into the Mantle (Radius * 0.5)
-                        float minHeight = config.planetRadius * 0.5f + 5f;
-                        float surfaceRadius = Mathf.Max(config.planetRadius + elevation, minHeight);
+                        // --- 2. Cave System (3D Noise) ---
+                        // "Worm" caves using Perlin > Threshold
+                        float caveNoise = Mathf.PerlinNoise(wx * config.caveFrequency, wy * config.caveFrequency) *
+                                          Mathf.PerlinNoise(wy * config.caveFrequency, wz * config.caveFrequency);
+                        bool isCave = caveNoise > config.caveThreshold && dist < surfaceHeight;
 
-                        // 3. Caves (3D Noise)
-                        bool isCave = false;
-                        if (useNoise)
+                        // --- 3. Block Decision Logic ---
+                        if (dist <= surfaceHeight)
                         {
-                            float cf = config.caveFrequency;
-                            float caveNoise = Mathf.PerlinNoise((globalPos.x + seedOffset) * cf, (globalPos.y + seedOffset) * cf) *
-                                              Mathf.PerlinNoise((globalPos.y + seedOffset) * cf, (globalPos.z + seedOffset) * cf);
-                            isCave = caveNoise > config.caveThreshold;
-                        }
-
-                        // --- Stratigraphy Logic ---
-                        if (dist <= surfaceRadius)
-                        {
-                            if (!IsInsideWorld(globalPos)) continue;
-
-                            // Cave Check (only in Crust/Mantle, not Core)
-                            if (isCave && dist > config.planetRadius * 0.3f)
+                            if (isCave && dist > config.planetRadius * 0.2f) // Don't drill into Core
                             {
+                                // Hollow Cave
                                 if (dist <= config.seaLevel)
                                     chunk.SetBlock(x, y, z, VoxelData.Water, false);
                                 else
@@ -328,67 +296,46 @@ namespace Voxel
                             }
                             else
                             {
-                                // Layers: Core -> Mantle -> Crust
-                                if (dist < config.planetRadius * 0.15f)
+                                // Solid Matter Rules
+                                if (dist < config.planetRadius * 0.2f)
                                 {
                                     chunk.SetBlock(x, y, z, VoxelData.Magma, false); // Core
                                 }
-                                else if (dist < config.planetRadius * 0.5f)
+                                else if (dist < config.planetRadius * 0.7f)
                                 {
-                                    // Mantle (Bedrock/Magma mix?)
-                                    if (Random.value > 0.9f) chunk.SetBlock(x, y, z, VoxelData.Magma, false);
-                                    else chunk.SetBlock(x, y, z, VoxelData.Bedrock, false);
-                                }
-                                else if (dist < surfaceRadius - 4)
-                                {
-                                    // Deep Crust
-                                    chunk.SetBlock(x, y, z, VoxelData.Stone, false);
+                                    chunk.SetBlock(x, y, z, VoxelData.Stone, false); // Mantle
                                 }
                                 else
                                 {
-                                    // Surface Crust (Biomes)
-                                    // Temperature Noise
-                                    float tempNoise = Mathf.PerlinNoise(wx * 0.01f + 500, wz * 0.01f + 500);
+                                    // Crust / Surface
+                                    // Biome Logic based on Temperature (Noise)
+                                    float temp = Mathf.PerlinNoise(wx * 0.01f + 500, wz * 0.01f + 500);
 
-                                    if (dist <= config.seaLevel + 1) // Beach/Water Level
+                                    if (dist > surfaceHeight - 1) // Top Layer
                                     {
-                                        chunk.SetBlock(x, y, z, VoxelData.Sand, false);
+                                        if (dist <= config.seaLevel + 2)
+                                            chunk.SetBlock(x, y, z, VoxelData.Sand, false); // Beach
+                                        else if (temp < 0.3f)
+                                            chunk.SetBlock(x, y, z, VoxelData.Snow, false);
+                                        else if (temp > 0.7f)
+                                            chunk.SetBlock(x, y, z, VoxelData.Sand, false);
+                                        else
+                                            chunk.SetBlock(x, y, z, VoxelData.Grass, false);
                                     }
-                                    else if (isMountain && dist > config.seaLevel + 15) // High Peaks
+                                    else if (dist > surfaceHeight - 4) // Sub-surface
                                     {
-                                        chunk.SetBlock(x, y, z, VoxelData.Snow, false);
+                                        chunk.SetBlock(x, y, z, VoxelData.Dirt, false);
                                     }
                                     else
                                     {
-                                        // Biome Selection with Color Variance
-                                        float patchNoise = Mathf.PerlinNoise(wx * 0.2f, wz * 0.2f); // Detail patches
-
-                                        if (tempNoise < 0.3f) // Cold -> Snow/Stone
-                                        {
-                                             chunk.SetBlock(x, y, z, VoxelData.Snow, false);
-                                        }
-                                        else if (tempNoise > 0.7f) // Hot -> Sand
-                                        {
-                                             if (patchNoise > 0.6f) chunk.SetBlock(x, y, z, VoxelData.Clay, false); // Clay patch
-                                             else chunk.SetBlock(x, y, z, VoxelData.Sand, false);
-                                        }
-                                        else // Temperate -> Grass
-                                        {
-                                             if (patchNoise > 0.7f) chunk.SetBlock(x, y, z, VoxelData.Dirt, false); // Dirt patch
-                                             else chunk.SetBlock(x, y, z, VoxelData.Grass, false);
-                                        }
-
-                                        // Gravel beaches?
-                                        if (dist <= config.seaLevel + 2 && patchNoise < 0.3f)
-                                        {
-                                            chunk.SetBlock(x, y, z, VoxelData.Gravel, false);
-                                        }
+                                        chunk.SetBlock(x, y, z, VoxelData.Stone, false);
                                     }
                                 }
                             }
                         }
                         else
                         {
+                            // Above Surface
                             if (dist <= config.seaLevel)
                             {
                                 chunk.SetBlock(x, y, z, VoxelData.Water, false);

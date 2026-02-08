@@ -141,6 +141,7 @@ namespace Voxel
                                 colors.Add(col);
                                 colors.Add(col);
 
+                                // Use correct winding order
                                 if (blockId == VoxelData.Water)
                                 {
                                     waterTriangles.Add(vertexIndex);
@@ -170,6 +171,7 @@ namespace Voxel
             }
 
             Mesh mesh = new Mesh();
+            mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32; // Support large meshes
             mesh.vertices = vertices.ToArray();
             mesh.colors = colors.ToArray();
 
@@ -177,10 +179,10 @@ namespace Voxel
             mesh.SetTriangles(solidTriangles.ToArray(), 0);
             mesh.SetTriangles(waterTriangles.ToArray(), 1);
 
-            mesh.RecalculateNormals();
+            mesh.RecalculateNormals(); // With duplicated vertices, this is fine for hard edges
 
-            if (meshFilter != null) meshFilter.mesh = mesh;
-            if (meshCollider != null) meshCollider.sharedMesh = mesh; // Physics on both
+            if (meshFilter != null) meshFilter.sharedMesh = mesh; // Use sharedMesh to avoid leaking mesh instances
+            if (meshCollider != null) meshCollider.sharedMesh = mesh;
         }
     }
 }
